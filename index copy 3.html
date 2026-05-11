@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReBOURNE: Jack Unleashed</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #000;
+            overflow: hidden;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 1920px;
+            height: 720px;
+        }
+
+        #gameCanvas {
+            display: block;
+            border: 2px solid #333;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .game-ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            font-family: 'Courier New', monospace;
+            text-align: left;
+        }
+        
+        .health-bar, .energy-bar {
+            width: 200px;
+            height: 20px;
+            border: 2px solid #fff;
+            margin: 5px 0;
+            position: relative;
+            background: #333;
+        }
+        
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(to right, #ff4444, #ff6666);
+            transition: width 0.3s ease;
+        }
+        
+        .energy-fill {
+            height: 100%;
+            background: linear-gradient(to right, #4444ff, #6666ff);
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .energy-fill.pulse {
+            animation: energyPulse 0.5s infinite alternate;
+        }
+        
+        @keyframes energyPulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+        }
+        
+        .cutscene {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: none;
+            flex-direction: column;
+            justify-content: center; /* Center vertically */
+            align-items: center;   /* Center horizontally */
+            z-index: 200;
+        }
+        
+        #cutsceneImage {
+            width: 100%;
+            height: auto;
+            max-height: 70%;
+            object-fit: contain;
+            display: none; /* Hidden by default */
+        }
+
+        .cutscene-text {
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            text-align: center;
+            padding: 20px;
+            text-shadow: 2px 2px 4px #000;
+            width: 80%;
+            border-radius: 10px;
+            /* Properties below are for text-only cutscenes & can be overridden */
+            opacity: 1;
+            animation: none;
+            background-color: transparent;
+        }
+        
+        .cutscene-skip {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #888;
+            font-size: 12px;
+        }
+        
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+        
+        @keyframes flashRed {
+            0%, 100% { background: #000; }
+            50% { background: #440000; }
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .title-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000; /* Keep black background */
+            cursor: pointer;
+            z-index: 300;
+            display: flex; /* New */
+            justify-content: center; /* New */
+            align-items: center; /* New */
+        }
+        
+        .title {
+            font-size: 48px;
+            font-weight: bold;
+            color: #00ffff;
+            text-shadow: 0 0 20px #00ffff;
+            margin-bottom: 10px;
+            animation: titleGlow 2s infinite alternate;
+        }
+        
+        .subtitle {
+            font-size: 24px;
+            color: #ff4444;
+            text-shadow: 0 0 10px #ff4444;
+            margin-bottom: 40px;
+        }
+        
+        .start-btn {
+            padding: 15px 30px;
+            font-size: 20px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+        
+        .start-btn:hover {
+            background: #ff6666;
+            transform: scale(1.05);
+        }
+        
+        @keyframes titleGlow {
+            from { text-shadow: 0 0 20px #00ffff; }
+            to { text-shadow: 0 0 30px #00ffff, 0 0 40px #00ffff; }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div class="title-screen" id="titleScreen">
+            <img id="startScreenImage" src="images/start_screen_background.gif" alt="Start Screen" style="max-width: 80%; max-height: 80%; object-fit: contain;">
+        </div>
+        
+        <canvas id="gameCanvas" width="1920" height="720"></canvas>
+        
+        <div class="game-ui">
+            <div>Dr. Jack</div>
+            <div class="health-bar">
+                <div class="health-fill" id="healthBar" style="width: 100%;"></div>
+            </div>
+            <div>Energy</div>
+            <div class="energy-bar">
+                <div class="energy-fill" id="energyBar" style="width: 0%;"></div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            A-Light | S-Heavy | E-Interact | Arrows-Move | A+S (Full Energy)-Special
+        </div>
+        
+        <div class="cutscene" id="cutscene">
+             <img id="cutsceneImage" src="">
+            <div class="cutscene-text" id="cutsceneText"></div>
+            <div class="cutscene-skip">Press SPACE to skip</div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const level1BackgroundImage = new Image();
+        level1BackgroundImage.src = 'images/level_1_background.gif';
+        
+        const level2TruckBackgroundImage = new Image();
+        level2TruckBackgroundImage.src = 'images/level_2_truck.png';
+
+        const level3JungleBackgroundImage = new Image();
+        level3JungleBackgroundImage.src = 'images/level_3_jungle.png';
+
+        const level4SunsetBackgroundImage = new Image();
+        level4SunsetBackgroundImage.src = 'images/level_4_sunset.png';
+
+        const level5LabBackgroundImage = new Image();
+        level5LabBackgroundImage.src = 'images/level_5_lab.png';
+
+        // Margery Animation Frames
+        const margeryIdleLeftFrames = [new Image(), new Image()];
+        margeryIdleLeftFrames[0].src = 'images/Margery_Limited (1)/Margery_Idle Left_0.png';
+        console.log("Margery Idle Left 0 loaded:", margeryIdleLeftFrames[0].complete, margeryIdleLeftFrames[0].naturalWidth);
+        margeryIdleLeftFrames[1].src = 'images/Margery_Limited (1)/Margery_Idle Left_1.png';
+        console.log("Margery Idle Left 1 loaded:", margeryIdleLeftFrames[1].complete, margeryIdleLeftFrames[1].naturalWidth);
+
+        const margeryIdleRightFrames = [new Image(), new Image()];
+        margeryIdleRightFrames[0].src = 'images/Margery_Limited (1)/Margery_Idle Right_0.png';
+        console.log("Margery Idle Right 0 loaded:", margeryIdleRightFrames[0].complete, margeryIdleRightFrames[0].naturalWidth);
+        margeryIdleRightFrames[1].src = 'images/Margery_Limited (1)/Margery_Idle Right_1.png';
+        console.log("Margery Idle Right 1 loaded:", margeryIdleRightFrames[1].complete, margeryIdleRightFrames[1].naturalWidth);
+
+        const margeryJumpLeftFrames = [new Image()];
+        margeryJumpLeftFrames[0].src = 'images/Margery_Limited (1)/Margery_Jump Left_0.png';
+
+        const margeryJumpRightFrames = [new Image()];
+        margeryJumpRightFrames[0].src = 'images/Margery_Limited (1)/Margery_Jump Right_0.png';
+
+        const margeryRunLeftFrames = [new Image(), new Image(), new Image(), new Image(), new Image(), new Image()];
+        margeryRunLeftFrames[0].src = 'images/Margery_Limited (1)/Margery_Run Left_0.png';
+        margeryRunLeftFrames[1].src = 'images/Margery_Limited (1)/Margery_Run Left_1.png';
+        margeryRunLeftFrames[2].src = 'images/Margery_Limited (1)/Margery_Run Left_2.png';
+        margeryRunLeftFrames[3].src = 'images/Margery_Limited (1)/Margery_Run Left_3.png';
+        margeryRunLeftFrames[4].src = 'images/Margery_Limited (1)/Margery_Run Left_4.png';
+        margeryRunLeftFrames[5].src = 'images/Margery_Limited (1)/Margery_Run Left_5.png';
+
+        const margeryRunRightFrames = [new Image(), new Image(), new Image(), new Image(), new Image(), new Image()];
+        margeryRunRightFrames[0].src = 'images/Margery_Limited (1)/Margery_Run Right_0.png';
+        margeryRunRightFrames[1].src = 'images/Margery_Limited (1)/Margery_Run Right_1.png';
+        margeryRunRightFrames[2].src = 'images/Margery_Limited (1)/Margery_Run Right_2.png';
+        margeryRunRightFrames[3].src = 'images/Margery_Limited (1)/Margery_Run Right_3.png';
+        margeryRunRightFrames[4].src = 'images/Margery_Limited (1)/Margery_Run Right_4.png';
+        margeryRunRightFrames[5].src = 'images/Margery_Limited (1)/Margery_Run Right_5.png';
+
+        const margeryAnimations = {
+            idleLeft: { spriteSheet: margeryIdleLeftFrames, frames: [0, 1], frameRate: 4 },
+            idleRight: { spriteSheet: margeryIdleRightFrames, frames: [0, 1], frameRate: 4 },
+            jumpLeft: { spriteSheet: margeryJumpLeftFrames, frames: [0], frameRate: 1 },
+            jumpRight: { spriteSheet: margeryJumpRightFrames, frames: [0], frameRate: 1 },
+            runLeft: { spriteSheet: margeryRunLeftFrames, frames: [0, 1, 2, 3, 4, 5], frameRate: 10 },
+            runRight: { spriteSheet: margeryRunRightFrames, frames: [0, 1, 2, 3, 4, 5], frameRate: 10 }
+        };
+        
+        const startScreenMusic = new Audio('Music/Pixelated Groove Machine.mp3');
+        startScreenMusic.loop = true;
+        startScreenMusic.volume = 0.5; // Adjust volume as needed
+
+        const level1Music = new Audio('Music/Neon Strut.mp3');
+        level1Music.loop = true;
+        level1Music.volume = 0.5; // Adjust volume as needed
+
+        const level2Music = new Audio('Music/cyberpunk-street.mp3');
+        level2Music.loop = true;
+        level2Music.volume = 0.5; // Adjust volume as needed
+
+        // Function to play start screen music
+        function playStartScreenMusic() {
+            startScreenMusic.play().catch(e => console.error("Error playing start screen music:", e));
+        }
+
+        // Function to play level 1 music
+        function playLevel1Music() {
+            startScreenMusic.pause();
+            startScreenMusic.currentTime = 0; // Reset start screen music
+            level1Music.play().catch(e => console.error("Error playing level 1 music:", e));
+        }
+
+        // Function to play level 2 music
+        function playLevel2Music() {
+            level1Music.pause();
+            level1Music.currentTime = 0; // Reset level 1 music
+            level2Music.play().catch(e => console.error("Error playing level 2 music:", e));
+        }
+
+        
+        
+        // Dr. Jack Idle Animation Frames
+                // Dr. Jack Idle Animation Frames
+        const drJackIdleFrames = [
+            new Image(), new Image(), new Image(), new Image(),
+            new Image(), new Image(), new Image(), new Image()
+        ];
+        drJackIdleFrames[0].src = 'images/dr_jack_/idle.png'; // Assuming idle.png is a single frame for now, will adjust if it's a sheet
+        console.log("Dr. Jack Idle Image 0 loaded:", drJackIdleFrames[0].complete, drJackIdleFrames[0].naturalWidth);
+        // For now, I'll assume idle.png is a single image. If it's a sheet, I'll need to adjust.
+
+        // Dr. Jack Jumping Animation Frames
+        const drJackJumpFrames = [
+            new Image(), new Image(), new Image(), new Image()
+        ];
+        drJackJumpFrames[0].src = 'images/dr_jack_/jump_1.png';
+        drJackJumpFrames[1].src = 'images/dr_jack_/jump_2.png';
+        drJackJumpFrames[2].src = 'images/dr_jack_/jump_3.png';
+        drJackJumpFrames[3].src = 'images/dr_jack_/jump_4.png';
+
+        // Dr. Jack Kick Animation Frames
+        const drJackKickFrames = [
+            new Image(), new Image(), new Image()
+        ];
+        drJackKickFrames[0].src = 'images/dr_jack_/kick_1.png';
+        drJackKickFrames[1].src = 'images/dr_jack_/kick_2.png';
+        drJackKickFrames[2].src = 'images/dr_jack_/kick_3.png';
+
+        // Dr. Jack Punch Animation Frames
+        const drJackPunchFrames = [
+            new Image(), new Image(), new Image(), new Image()
+        ];
+        drJackPunchFrames[0].src = 'images/dr_jack_/punch_0.png';
+        drJackPunchFrames[1].src = 'images/dr_jack_/punch_1.png';
+        drJackPunchFrames[2].src = 'images/dr_jack_/punch_2.png';
+        drJackPunchFrames[3].src = 'images/dr_jack_/punch_3.png';
+
+        // Dr. Jack Running Animation Frames
+        const drJackRunFrames = [
+            new Image(), new Image(), new Image(), new Image(), new Image()
+        ];
+        drJackRunFrames[0].src = 'images/dr_jack_/run_1.png';
+        drJackRunFrames[1].src = 'images/dr_jack_/run_2.png';
+        drJackRunFrames[2].src = 'images/dr_jack_/run_3.png';
+        drJackRunFrames[3].src = 'images/dr_jack_/run_4.png';
+        drJackRunFrames[4].src = 'images/dr_jack_/run_5.png';
+
+        const playerAnimations = {
+            idle: {
+                spriteSheet: drJackIdleFrames,
+                frames: [0], // Assuming idle.png is a single frame
+                frameRate: 1 // Adjust as needed
+            },
+            running: {
+                spriteSheet: drJackRunFrames,
+                frames: [0, 1, 2, 3, 4],
+                frameRate: 10
+            },
+            jumping: {
+                spriteSheet: drJackJumpFrames,
+                frames: [0, 1, 2, 3],
+                frameRate: 8 // Adjust as needed
+            },
+            punch: {
+                spriteSheet: drJackPunchFrames,
+                frames: [0, 1, 2, 3],
+                frameRate: 12 // Adjust as needed
+            },
+            kick: {
+                spriteSheet: drJackKickFrames,
+                frames: [0, 1, 2],
+                frameRate: 12 // Adjust as needed
+            }
+        };
+
+        let gameState = 'title';
+        let currentLevel = 0;
+        let cutsceneTimer = 0;
+        let level2EnemySpawnTimer = 0;
+        let enemiesToSpawnInLevel2 = 10;
+        let gameStarted = false;
+        let lastTime = 0;
+
+        let currentGroundLevel = 540;
+        const PLAYER_SPEED = 300;
+        const JUMP_VELOCITY = -900;
+        const GRAVITY = 2880;
+
+
+        const player = {
+            x: 100, y: currentGroundLevel, width: 64, height: 64, // Updated width and height
+            health: 100, maxHealth: 100, energy: 0, maxEnergy: 100,
+            vx: 0, vy: 0, grounded: true, facing: 1,
+            state: 'idle', // Initial state
+            currentAnimation: 'idle',
+            currentFrame: 0,
+            frameTimer: 0,
+            attackCombo: 0, attackCooldown: 0, invulnerable: 0,
+            lastAttackType: ''
+        };
+        
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if ((gameState === 'cutscene' || gameState === 'ending') && e.key === ' ') skipCutscene();
+            if (e.key === '8') { // For testing: skip to level complete cutscene
+                showLevelCompleteCutscene();
+            }
+        });
+        document.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+        
+        let enemies = [];
+        let levelBoss = null;
+        let environmentObjects = [];
+        let projectiles = [];
+        let npc = null;
+        let backgroundElements = [];
+
+        class BackgroundElement {
+            constructor(type) {
+                this.type = type;
+                this.x = Math.random() * canvas.width;
+                if (type === 'cloud') {
+                    this.y = Math.random() * 200;
+                    this.width = 100 + Math.random() * 100;
+                    this.height = 30 + Math.random() * 30;
+                    this.speed = 30 + Math.random() * 30;
+                } else { // bird
+                    this.y = 100 + Math.random() * 150;
+                    this.width = 20;
+                    this.height = 10;
+                    this.speed = 120 + Math.random() * 120;
+                }
+            }
+            update(deltaTime, playerVx = 0) {
+                const parallaxSpeedFactor = 0.2; // Adjust this value for more or less parallax
+                this.x -= (this.speed + playerVx * parallaxSpeedFactor) * deltaTime;
+                if (this.x + this.width < 0) {
+                    this.x = canvas.width;
+                }
+            }
+            draw() {
+                if (this.type === 'cloud') {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                } else {
+                    ctx.fillStyle = '#333';
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x + this.width / 2, this.y + this.height);
+                    ctx.lineTo(this.x + this.width, this.y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        }
+
+
+        class NPC {
+            constructor(x, y) {
+                this.x = x; this.y = y; 
+                this.width = 32; this.height = 32; // Adjust based on sprite size
+                this.speed = 150; this.followDistance = 80;
+                this.currentAnimation = 'idleRight'; // Default animation
+                this.currentFrame = 0;
+                this.frameTimer = 0;
+                this.facing = 1; // 1 for right, -1 for left
+            }
+            update(deltaTime) {
+                const distToPlayer = this.x - player.x;
+                let moving = false;
+                if (Math.abs(distToPlayer) > this.followDistance) {
+                    this.x += Math.sign(player.x - this.x) * this.speed * deltaTime;
+                    this.facing = Math.sign(player.x - this.x);
+                    moving = true;
+                }
+
+                // Update animation state
+                if (moving) {
+                    this.currentAnimation = this.facing === 1 ? 'runRight' : 'runLeft';
+                } else {
+                    this.currentAnimation = this.facing === 1 ? 'idleRight' : 'idleLeft';
+                }
+
+                // Update animation frame
+                this.frameTimer += deltaTime;
+                const animation = margeryAnimations[this.currentAnimation];
+                if (this.frameTimer >= 1 / animation.frameRate) {
+                    this.currentFrame = (this.currentFrame + 1) % animation.frames.length;
+                    this.frameTimer = 0;
+                }
+            }
+            draw() {
+                ctx.save();
+                const animation = margeryAnimations[this.currentAnimation];
+                const currentSprite = animation.spriteSheet[this.currentFrame];
+                console.log("NPC.draw currentSprite:", currentSprite);
+                if (currentSprite && currentSprite.complete && currentSprite.naturalWidth > 0) {
+                    // Draw the sprite
+                    ctx.drawImage(currentSprite, this.x - this.width / 2, this.y - this.height, this.width, this.height);
+                } else {
+                    console.warn("NPC sprite not loaded or invalid:", currentSprite);
+                    ctx.fillStyle = 'blue';
+                    ctx.fillRect(this.x - this.width / 2, this.y - this.height, this.width, this.height);
+                }
+            }
+        }
+
+        class Projectile {
+            constructor(x, y, vx, vy, type = 'bottle') {
+                this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.type = type;
+                this.width = type === 'knife' ? 5 : 10;
+                this.height = type === 'knife' ? 15 : 20;
+                this.rotation = 0; this.gravity = 1200;
+            }
+            update(deltaTime) {
+                this.x += this.vx * deltaTime; 
+                this.vy += this.gravity * deltaTime;
+                this.y += this.vy * deltaTime;
+                this.rotation += 12 * Math.sign(this.vx) * deltaTime;
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                let color = '#ccc';
+                switch(this.type){
+                    case 'bottle': color = '#6A8A6A'; break;
+                    case 'chair': color = '#8B4513'; break;
+                    case 'lamp': color = '#aab8c2'; break;
+                    case 'monitor': color = '#333'; break;
+                    case 'knife': color = '#c0c0c0'; break;
+                }
+                ctx.fillStyle = color;
+                ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+                ctx.restore();
+            }
+        }
+
+        class EnvironmentObject {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.type = type;
+                this.width = (type==='chair') ? 30 : (type==='lamp') ? 15 : (type==='monitor') ? 25 : 10; 
+                this.height = (type==='chair') ? 40 : (type==='lamp') ? 50 : (type==='monitor') ? 20 : 20;
+                this.health = 1; 
+                if(type === 'laser') this.active = true;
+            }
+            draw() {
+                if (['bottle', 'chair', 'lamp', 'monitor'].includes(this.type)) {
+                    let color = '#ccc';
+                    switch(this.type){
+                        case 'bottle': color = '#6A8A6A'; break;
+                        case 'chair': color = '#8B4513'; break;
+                        case 'lamp': color = '#aab8c2'; break;
+                        case 'monitor': color = '#333'; break;
+                    }
+                    ctx.fillStyle = color;
+                    ctx.fillRect(this.x - this.width/2, this.y - this.height, this.width, this.height);
+                } else if (this.type === 'destructible_wall') {
+                    ctx.fillStyle = 'rgba(200, 200, 220, 0.5)';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                } else if (this.type === 'laser') {
+                    if (Math.floor(Date.now() / 2000) % 2 === 0) { // on for 2s, off for 2s
+                        this.active = true;
+                        ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                        ctx.fillRect(this.x, 0, this.width, canvas.height);
+                    } else {
+                        this.active = false;
+                    }
+                }
+            }
+        }
+        
+        class Enemy {
+            constructor(x, y, type = 'grunt') {
+                this.x = x; this.y = y; this.type = type;
+                this.width = type === 'heavy' ? 45 : 35; this.height = type === 'heavy' ? 65 : 55;
+                this.health = type === 'grunt' ? 25 : (type === 'heavy' ? 50 : 35);
+                this.maxHealth = this.health;
+                this.facing = -1; this.state = 'idle'; this.attackCooldown = 0; this.stunned = 0;
+                this.speed = (type === 'heavy' ? 18 : (type === 'security' ? 42 : 30));
+                this.vy = 0;
+            }
+            update(deltaTime) {
+                if (this.y < currentGroundLevel) { // Dropping in
+                    this.vy += GRAVITY * deltaTime;
+                    this.y += this.vy * deltaTime;
+                    if (this.y >= currentGroundLevel) {
+                        this.y = currentGroundLevel;
+                    }
+                    return;
+                }
+
+                if (this.stunned > 0) { this.stunned -= deltaTime * 1000; return; }
+                const distToPlayer = this.x - player.x;
+                const attackRange = this.type === 'heavy' ? 70 : 60;
+                const followRange = 400;
+                if (Math.abs(distToPlayer) > followRange) { /* idle */ } 
+                else if (Math.abs(distToPlayer) > attackRange) {
+                    this.x += (distToPlayer > 0 ? -1 : 1) * this.speed * deltaTime;
+                    this.facing = distToPlayer > 0 ? -1 : 1;
+                }
+                if (Math.abs(distToPlayer) < attackRange && this.attackCooldown <= 0) this.attack();
+                if (this.attackCooldown > 0) this.attackCooldown -= deltaTime * 1000;
+            }
+            attack() {
+                const damage = this.type === 'heavy' ? 12 : 8;
+                this.attackCooldown = (this.type === 'heavy' ? 1500 : (this.type === 'security' ? 750 : 1000));
+                if (Math.abs(this.x - player.x) < this.width && player.invulnerable <= 0) {
+                    player.health = Math.max(0, player.health - damage);
+                    player.energy = Math.min(player.maxEnergy, player.energy + 3);
+                    player.invulnerable = 500;
+                    updateUI();
+                }
+            }
+            takeDamage(damage) {
+                this.health -= damage; this.stunned = 250;
+                if (this.health <= 0) {
+                    player.energy = Math.min(player.maxEnergy, player.energy + 10);
+                    return true;
+                }
+                return false;
+            }
+            draw() {
+                let color = this.stunned > 0 ? '#ff9999' : '#ff4444';
+                if(this.type === 'heavy') color = this.stunned > 0 ? '#aa6666' : '#884444';
+                if(this.type === 'security') color = this.stunned > 0 ? '#6666aa' : '#444488';
+                ctx.fillStyle = color;
+                ctx.fillRect(this.x - this.width/2, this.y - this.height, this.width, this.height);
+                if (this.health < this.maxHealth) {
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(this.x - 20, this.y - this.height - 10, 40, 4);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(this.x - 20, this.y - this.height - 10, 40 * (this.health / this.maxHealth), 4);
+                }
+            }
+        }
+        
+        class Boss extends Enemy {
+             constructor(x, y) {
+                super(x, y, 'boss');
+                this.width = 60; this.height = 80; this.health = 150; this.maxHealth = 150;
+            }
+            draw() {
+                ctx.fillStyle = '#880000';
+                ctx.fillRect(this.x - this.width/2, this.y - this.height, this.width, this.height);
+                this.drawHealthBar('Security Chief');
+            }
+            drawHealthBar(name) {
+                ctx.fillStyle = '#333';
+                ctx.fillRect(canvas.width/2 - 100, 20, 200, 8);
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(canvas.width/2 - 100, 20, 200 * (this.health / this.maxHealth), 8);
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.fillText(name, canvas.width/2 - 100, 15);
+            }
+        }
+
+        class PoliceBoss extends Boss {
+            constructor(x, y) {
+                super(x, y); this.type = 'police_boss'; this.health = 200; this.maxHealth = 200;
+                this.isBlocking = false; this.blockTimer = 3000;
+            }
+            update(deltaTime) {
+                super.update(deltaTime); this.blockTimer -= deltaTime * 1000;
+                if (this.blockTimer <= 0) {
+                    this.isBlocking = !this.isBlocking;
+                    this.blockTimer = this.isBlocking ? 2000 : 3000;
+                }
+            }
+            takeDamage(damage) {
+                const inFront = (player.x - this.x) * this.facing > 0;
+                if (this.isBlocking && inFront) return false;
+                return super.takeDamage(damage);
+            }
+            draw() {
+                ctx.fillStyle = '#444488';
+                ctx.fillRect(this.x - this.width/2, this.y - this.height, this.width, this.height);
+                if (this.isBlocking) {
+                    ctx.fillStyle = '#aaaaaa';
+                    ctx.fillRect(this.x + (this.facing * 25), this.y - this.height, 15, this.height);
+                }
+                this.drawHealthBar('Police Commander');
+            }
+        }
+        
+        class AssassinBoss extends Boss {
+            constructor(x, y) {
+                super(x, y); this.type = 'assassin'; this.health = 180; this.maxHealth = 180;
+                this.dodgeCooldown = 0; this.throwCooldown = 2000;
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                const distToPlayer = this.x - player.x;
+                this.speed = 90;
+                if (this.dodgeCooldown > 0) this.dodgeCooldown -= deltaTime * 1000;
+                if (this.throwCooldown > 0) this.throwCooldown -= deltaTime * 1000;
+                if (Math.abs(distToPlayer) < 100 && player.state === 'attacking' && this.dodgeCooldown <= 0) {
+                    this.x += Math.sign(distToPlayer) * 100; this.dodgeCooldown = 1500;
+                }
+                if (this.throwCooldown <= 0) {
+                    projectiles.push(new Projectile(this.x, this.y - 40, -360 * this.facing, -240, 'knife'));
+                    this.throwCooldown = 2500;
+                }
+            }
+            draw() {
+                ctx.fillStyle = '#333333';
+                ctx.fillRect(this.x - this.width/2, this.y - this.height, this.width, this.height);
+                this.drawHealthBar('Assassin');
+            }
+        }
+
+        class ExecutiveBoss extends Boss {
+             constructor(x, y) {
+                super(x, y); this.type = 'executive'; this.health = 250; this.maxHealth = 250;
+                this.isCharging = false; this.chargeCooldown = 4000; this.chargeTargetX = 0;
+            }
+            update(deltaTime) {
+                this.chargeCooldown -= deltaTime * 1000;
+                if(this.isCharging){
+                    this.x += Math.sign(this.chargeTargetX - this.x) * 480 * deltaTime; // Charge speed
+                    if(Math.abs(this.x - this.chargeTargetX) < 20){
+                        this.isCharging = false;
+                        this.stunned = 500;
+                    }
+                } else {
+                    super.update(deltaTime);
+                    if(this.chargeCooldown <= 0){
+                        this.isCharging = true;
+                        this.chargeTargetX = player.x;
+                        this.chargeCooldown = 5000;
+                    }
+                }
+            }
+            draw() {
+                ctx.fillStyle = '#D4AF37'; // Gold/yellow armor
+                ctx.fillRect(this.x - this.width/2, this.y - this.height, this.width, this.height);
+                if(this.isCharging) {
+                     ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+                     ctx.fillRect(0, this.y - this.height, canvas.width, this.height);
+                }
+                this.drawHealthBar('Executive');
+            }
+        }
+
+        class HandlerBoss extends Boss {
+            constructor(x, y) {
+                super(x, y); this.type = 'handler'; this.health = 300; this.maxHealth = 300;
+                this.teleportCooldown = 3000;
+            }
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.speed = 120;
+                this.teleportCooldown -= deltaTime * 1000;
+                if (this.teleportCooldown <= 0) {
+                    this.x = player.x + (player.facing * -100); // Teleport behind player
+                    this.teleportCooldown = 4000;
+                }
+            }
+             draw() {
+                ctx.fillStyle = '#6a0dad'; // Purple suit
+                ctx.fillRect(this.x - this.width/2, this.y - this.height, this.width, this.height);
+                this.drawHealthBar('The Handler');
+            }
+        }
+
+
+        function startGame() {
+            console.log("startGame() called"); // Debugging line
+            if (gameStarted) return;
+            gameStarted = true;
+            document.getElementById('titleScreen').style.display = 'none';
+            startScreenMusic.pause(); // Pause start screen music
+            startScreenMusic.currentTime = 0; // Reset start screen music
+            startOpeningCutscene();
+            gameLoop(0);
+        }
+        
+        function startOpeningCutscene() {
+            gameState = 'cutscene';
+            cutsceneTimer = setTimeout(skipCutscene, 11500); // Adjusted total time for longer fade
+            const cutsceneDiv = document.getElementById('cutscene');
+            const textDiv = document.getElementById('cutsceneText');
+            const imageEl = document.getElementById('cutsceneImage');
+            
+            cutsceneDiv.style.display = 'flex';
+            textDiv.style.display = 'none';
+            imageEl.style.display = 'block';
+
+            // Play start screen music when cutscene starts
+            startScreenMusic.play().catch(e => console.error("Error playing start screen music in cutscene:", e));
+
+            const cutsceneImages = [
+                'images/cutscene1.png',
+                'images/cutscene2.png',
+                'images/cutscene3.png'
+            ];
+            let currentImageIndex = 0;
+
+            const showNextImage = () => {
+                if (gameState !== 'cutscene' || currentImageIndex >= cutsceneImages.length) {
+                    return;
+                }
+
+                // Set fade-in duration
+                if (currentImageIndex === 2) { // Fading in the 3rd image (part of 2nd transition)
+                    imageEl.style.transition = 'opacity 1s ease-in-out';
+                } else {
+                    imageEl.style.transition = 'opacity 0.5s ease-in-out';
+                }
+                
+                // Fade in
+                imageEl.src = cutsceneImages[currentImageIndex];
+                imageEl.style.opacity = 1;
+
+                currentImageIndex++;
+
+                setTimeout(() => {
+                    if (gameState !== 'cutscene' || currentImageIndex > cutsceneImages.length) return;
+                    
+                    // Set fade-out duration
+                    let fadeOutDuration = 500;
+                    if (currentImageIndex === 2) { // Fading out the 2nd image (part of 2nd transition)
+                        fadeOutDuration = 1000;
+                        imageEl.style.transition = 'opacity 1s ease-in-out';
+                    } else {
+                        imageEl.style.transition = 'opacity 0.5s ease-in-out';
+                    }
+
+                    // Fade out
+                    imageEl.style.opacity = 0;
+                    
+                    setTimeout(showNextImage, fadeOutDuration);
+                }, 3000);
+            };
+            
+            imageEl.style.opacity = 0;
+            showNextImage();
+        }
+        
+        function showLevel1StartScreen() {
+            gameState = 'cutscene'; // Keep game paused
+            const cutsceneDiv = document.getElementById('cutscene');
+            const textDiv = document.getElementById('cutsceneText');
+            const imageEl = document.getElementById('cutsceneImage');
+
+            // Set image source and display
+            imageEl.src = 'images/who-am-i.png'; // Set the new image
+            imageEl.style.display = 'block';
+            imageEl.style.opacity = 1;
+
+            textDiv.innerHTML = 'LEVEL 1 START';
+            textDiv.style.display = 'block';
+            textDiv.style.color = '#fff';
+            textDiv.style.fontSize = '48px';
+            textDiv.style.textShadow = '2px 2px 8px #000';
+            textDiv.style.textAlign = 'center'; // Ensure text is centered
+
+            // Remove absolute positioning for text, rely on flexbox
+            textDiv.style.top = 'auto';
+            textDiv.style.left = 'auto';
+            textDiv.style.bottom = 'auto';
+            textDiv.style.transform = 'none'; // Remove transform for centering
+
+            cutsceneDiv.style.display = 'flex'; // Ensure flexbox is active
+
+            setTimeout(() => {
+                cutsceneDiv.style.display = 'none';
+                // Reset styles for other cutscenes
+                textDiv.style.fontSize = '28px';
+                textDiv.style.textShadow = '2px 2px 4px #000';
+                imageEl.style.objectFit = 'contain';
+                // Reset text position (these will be overridden by cutscene logic later)
+                textDiv.style.top = 'auto';
+                textDiv.style.left = '50%';
+                textDiv.style.bottom = '10%';
+                textDiv.style.transform = 'translateX(-50%)';
+                initLevel1();
+                gameState = 'playing';
+            }, 3000);
+        }
+
+        function skipCutscene() {
+            if (cutsceneTimer) clearTimeout(cutsceneTimer);
+            document.getElementById('cutscene').style.display = 'none';
+            document.getElementById('cutsceneImage').style.display = 'none'; // Hide image
+
+            const isStartingLevel1 = (currentLevel === 0);
+
+            if (isStartingLevel1) {
+                showLevel1StartScreen();
+            } else {
+                if (currentLevel === 1) initLevel2();
+                else if (currentLevel === 2) initLevel3();
+                else if (currentLevel === 3) initLevel4();
+                else if (currentLevel === 4) initLevel5();
+                else if (currentLevel === 5) initLevel6();
+                else {
+                     gameState = 'title';
+                     document.getElementById('titleScreen').style.display = 'flex';
+                }
+            }
+            
+            if (!isStartingLevel1 && (gameState === 'cutscene' || gameState === 'ending')) {
+                gameState = 'playing';
+            }
+        }
+        
+        
+        function initLevel1() {
+            currentLevel = 1; player.x = 100; player.health = 100; player.energy = 0;
+            currentGroundLevel = 540;
+            enemies = [ new Enemy(960, currentGroundLevel), new Enemy(1200, currentGroundLevel), new Enemy(1440, currentGroundLevel, 'security') ];
+            levelBoss = null; environmentObjects = []; projectiles = []; npc = null; updateUI();
+            playLevel1Music(); // Play Level 1 music
+        }
+
+        function initLevel2() {
+            currentLevel = 2; player.x = canvas.width / 2; player.health = 100; player.energy = 0;
+            currentGroundLevel = 360;
+            enemies = []; levelBoss = null; projectiles = []; npc = null;
+            environmentObjects = [];
+            updateUI();
+            playLevel2Music();
+        }
+
+        function initLevel3() {
+            currentLevel = 3; player.x = 100; player.health = 100; player.energy = 0;
+            currentGroundLevel = 540;
+            enemies = [ new Enemy(1200, currentGroundLevel, 'heavy'), new Enemy(1440, currentGroundLevel, 'security') ];
+            levelBoss = null; projectiles = []; npc = null;
+            environmentObjects = [ 
+                new EnvironmentObject(480, currentGroundLevel, 'chair'), new EnvironmentObject(960, currentGroundLevel, 'lamp'),
+                new EnvironmentObject(720, 0, 'destructible_wall')
+            ];
+            environmentObjects[2].width = 480; environmentObjects[2].height = 360;
+            updateUI();
+        }
+
+        function initLevel4() {
+            currentLevel = 4; player.x = 100; player.health = 100; player.energy = 0;
+            currentGroundLevel = 540;
+            enemies = [ new Enemy(1440, currentGroundLevel, 'heavy'), new Enemy(1680, currentGroundLevel, 'security') ];
+            levelBoss = null; projectiles = []; npc = new NPC(120, currentGroundLevel);
+            environmentObjects = [ new EnvironmentObject(720, currentGroundLevel, 'chair') ];
+            updateUI();
+        }
+
+        function initLevel5() {
+            currentLevel = 5; player.x = 100; player.health = 100; player.energy = 0;
+            currentGroundLevel = 540;
+            enemies = [ new Enemy(960, currentGroundLevel, 'security'), new Enemy(1200, currentGroundLevel, 'security') ];
+            levelBoss = null; projectiles = []; npc = null;
+            environmentObjects = [ new EnvironmentObject(600, currentGroundLevel, 'monitor'), new EnvironmentObject(1320, currentGroundLevel, 'monitor')];
+            updateUI();
+        }
+        
+        function initLevel6() {
+            currentLevel = 6; player.x = 100; player.health = 100; player.energy = 0;
+            currentGroundLevel = 540;
+            enemies = [ new Enemy(960, currentGroundLevel, 'heavy') ];
+            levelBoss = null; projectiles = []; npc = null;
+            environmentObjects = [ new EnvironmentObject(720, 0, 'laser'), new EnvironmentObject(1440, 0, 'laser') ];
+            environmentObjects[0].width = 24; environmentObjects[1].width = 24;
+            updateUI();
+        }
+
+
+        function checkLevelCompletion() {
+            if(currentLevel === 2 && enemiesToSpawnInLevel2 <= 0 && enemies.length === 0 && !levelBoss) {
+                 levelBoss = new PoliceBoss(1680, currentGroundLevel);
+            }
+            else if (enemies.length === 0 && !levelBoss) {
+                if (currentLevel === 1) levelBoss = new Boss(1680, currentGroundLevel);
+                else if (currentLevel === 3) levelBoss = new AssassinBoss(1680, currentGroundLevel);
+                else if (currentLevel === 4) levelBoss = new ExecutiveBoss(1680, currentGroundLevel);
+                else if (currentLevel === 5) levelBoss = new HandlerBoss(1680, currentGroundLevel);
+                else if (currentLevel === 6) showLevelCompleteCutscene();
+            }
+            if (levelBoss && levelBoss.health <= 0) {
+                levelBoss = null;
+                showLevelCompleteCutscene();
+            }
+        }
+        
+        function showLevelCompleteCutscene() {
+            gameState = 'cutscene';
+            const cutsceneDiv = document.getElementById('cutscene');
+            const textDiv = document.getElementById('cutsceneText');
+            const imageEl = document.getElementById('cutsceneImage');
+
+            // Reset styles that might have been set by other screens
+            textDiv.style.display = 'block';
+            textDiv.style.top = 'auto';
+            textDiv.style.left = 'auto';
+            textDiv.style.transform = 'none';
+            textDiv.style.color = '#ffffff';
+            textDiv.style.backgroundColor = 'transparent';
+            textDiv.style.opacity = '1';
+
+
+            let cutsceneText = '';
+            let cutsceneImage = '';
+
+            const levelCutsceneImages = [
+                'cutscenes/level_1_cutscene_1-memory-fragments.png',
+                'cutscenes/level_2_cutscene_rooftop-realization.png',
+                'cutscenes/level_3_cutscene_identity_crisis.png',
+                'cutscenes/level_4_cutscene_painful-memories.png',
+                'cutscenes/level_5_cutscene_dark-past-revealed.png',
+                'cutscenes/ending_cutscene.png' // Corresponds to level 6 text
+            ];
+            
+            if (currentLevel >= 1 && currentLevel <= 6) {
+                cutsceneImage = levelCutsceneImages[currentLevel - 1];
+            }
+
+            if (currentLevel === 1) {
+                cutsceneText = '"I remember... but this isn\'t right..."';
+            } else if (currentLevel === 2) {
+                cutsceneText = '"These moves... I never learned them in medical school."';
+            } else if (currentLevel === 3) {
+                cutsceneText = '"Dr. Jack Morrison... was that ever really my name?"';
+            } else if (currentLevel === 4) {
+                cutsceneText = '"They made me forget... but why?"';
+            } else if (currentLevel === 5) {
+                cutsceneText = '"I chose to forget the monster I became..."';
+            } else if (currentLevel === 6) {
+                cutsceneText = '"...but some things can\'t stay buried."';
+            }
+            
+            textDiv.innerHTML = cutsceneText;
+
+            if (cutsceneImage) {
+                imageEl.src = cutsceneImage;
+                imageEl.style.display = 'block';
+            } else {
+                imageEl.style.display = 'none';
+            }
+            
+            cutsceneDiv.style.display = 'flex';
+
+            cutsceneTimer = setTimeout(skipCutscene, 5000);
+        }
+        
+        function handleInput() {
+            if (gameState !== 'playing') return;
+            player.vx = 0;
+            if (player.state !== 'attacking' && player.state !== 'special') {
+                if (keys['arrowleft']) { 
+                    player.vx = -1; 
+                    player.facing = -1; 
+                    player.state = 'walking'; 
+                    player.currentAnimation = 'running'; // Set running animation
+                }
+                else if (keys['arrowright']) { 
+                    player.vx = 1; 
+                    player.facing = 1; 
+                    player.state = 'walking'; 
+                    player.currentAnimation = 'running'; // Set running animation
+                }
+                else { 
+                    player.vx = 0; 
+                    if(player.grounded) {
+                        player.state = 'idle';
+                        player.currentAnimation = 'idle'; // Set idle animation
+                    }
+                }
+
+                if (keys['arrowup'] && player.grounded) { 
+                    player.vy = JUMP_VELOCITY; 
+                    player.grounded = false; 
+                    player.currentAnimation = 'jumping'; // Set jumping animation
+                }
+            }
+            if (keys['a'] && player.attackCooldown <= 0) {
+                if (keys['s'] && player.energy >= player.maxEnergy) performSpecialMove();
+                else performLightAttack();
+            } else if (keys['s'] && player.attackCooldown <= 0) {
+                performHeavyAttack();
+            }
+            if (keys['e']) {
+                keys['e'] = false; // Prevent spamming
+                performInteraction();
+            }
+        }
+        
+        function performInteraction() {
+            for (let i = environmentObjects.length - 1; i >= 0; i--) {
+                const obj = environmentObjects[i];
+                if (obj.type !== 'destructible_wall' && obj.type !== 'laser' && Math.abs(player.x - obj.x) < 40) {
+                    projectiles.push(new Projectile(player.x, player.y - 40, 360 * player.facing, -300, obj.type));
+                    environmentObjects.splice(i, 1);
+                    return; 
+                }
+            }
+        }
+
+        function performLightAttack() {
+            player.state = 'attacking'; 
+            player.attackCooldown = 333; 
+            player.lastAttackType = 'light';
+            player.currentAnimation = 'punch'; // Set punch animation
+            player.currentFrame = 0; // Reset animation to first frame
+            player.frameTimer = 0; // Reset frame timer
+            player.attackCombo = (player.attackCombo % 5) + 1;
+            let damage = player.attackCombo === 4 ? 8 : (player.attackCombo === 5 ? 10 : 5);
+            const attackHitbox = { x: player.x + (player.facing * 40), width: 70 };
+            
+            [...enemies, levelBoss].filter(e => e).forEach((enemy, index) => {
+                if (Math.abs(enemy.x - attackHitbox.x) < attackHitbox.width / 2) {
+                    if (enemy.takeDamage(damage) && enemy !== levelBoss) enemies.splice(index, 1);
+                    player.energy = Math.min(player.maxEnergy, player.energy + 2);
+                }
+            });
+            updateUI();
+        }
+        
+        function performHeavyAttack() {
+            player.state = 'attacking'; 
+            player.attackCooldown = 666; 
+            player.attackCombo = 0; 
+            player.lastAttackType = 'heavy';
+            player.currentAnimation = 'kick'; // Set kick animation
+            player.currentFrame = 0; // Reset animation to first frame
+            player.frameTimer = 0; // Reset frame timer
+            const damage = 15;
+            const attackHitbox = { x: player.x + (player.facing * 50), width: 90 };
+            [...enemies, levelBoss].filter(e => e).forEach((enemy, index) => {
+                 if (Math.abs(enemy.x - attackHitbox.x) < attackHitbox.width/2) {
+                    if (enemy.takeDamage(damage) && enemy !== levelBoss) enemies.splice(index, 1);
+                    player.energy = Math.min(player.maxEnergy, player.energy + 4);
+                }
+            });
+            environmentObjects.forEach((wall, index) => {
+                if (wall.type === 'destructible_wall' && attackHitbox.x > wall.x && attackHitbox.x < wall.x + wall.width) {
+                    if(--wall.health <= 0) environmentObjects.splice(index, 1);
+                }
+            });
+            updateUI();
+        }
+        
+        function performSpecialMove() {
+            player.state = 'special'; player.attackCooldown = 3000; player.energy = 0; player.invulnerable = 3000;
+            let primaryTarget = null; let closestDist = 150;
+            [...enemies, levelBoss].filter(e => e).forEach(enemy => {
+                const dist = enemy.x - player.x;
+                if ((player.facing > 0 ? dist > 0 : dist < 0) && Math.abs(dist) < closestDist) {
+                    closestDist = Math.abs(dist); primaryTarget = enemy;
+                }
+            });
+            if (primaryTarget) {
+                 if (primaryTarget.takeDamage(88) && primaryTarget !== levelBoss) {
+                    enemies.splice(enemies.indexOf(primaryTarget), 1);
+                 }
+            }
+            [...enemies, levelBoss].filter(e => e && e !== primaryTarget && Math.abs(e.x - player.x) < 150).forEach(e => {
+                if (e.takeDamage(15) && e !== levelBoss) enemies.splice(enemies.indexOf(e), 1);
+            });
+            const specialHitbox = {x: player.x, width: 300};
+            environmentObjects.forEach((wall, index) => {
+                if (wall.type === 'destructible_wall' && specialHitbox.x + specialHitbox.width/2 > wall.x && specialHitbox.x - specialHitbox.width/2 < wall.x + wall.width) {
+                    if(--wall.health <= 0) environmentObjects.splice(index, 1);
+                }
+            });
+            updateUI();
+        }
+        
+        function updatePlayer(deltaTime) {
+            player.x += player.vx * PLAYER_SPEED * deltaTime;
+            if (!player.grounded) {
+                player.vy += GRAVITY * deltaTime;
+                player.y += player.vy * deltaTime;
+                if (player.y >= currentGroundLevel) {
+                    player.y = currentGroundLevel;
+                    player.vy = 0;
+                    player.grounded = true;
+                    if (player.currentAnimation === 'jumping') { // If was jumping, revert to idle/running
+                        if (player.vx !== 0) {
+                            player.currentAnimation = 'running';
+                        } else {
+                            player.currentAnimation = 'idle';
+                        }
+                        player.currentFrame = 0; // Reset frame for new animation
+                        player.frameTimer = 0; // Reset frame timer
+                    }
+                }
+            }
+            player.x = Math.max(player.width/2, Math.min(canvas.width - player.width/2, player.x));
+            if (player.attackCooldown > 0) {
+                player.attackCooldown -= deltaTime * 1000;
+                if(player.attackCooldown <= 0) {
+                     player.state = 'idle'; 
+                     player.attackCombo = 0;
+                     // Reset animation to idle or running after attack
+                     if (player.vx !== 0) { // If still moving
+                         player.currentAnimation = 'running';
+                     } else {
+                         player.currentAnimation = 'idle';
+                     }
+                     player.currentFrame = 0; // Reset frame for new animation
+                     player.frameTimer = 0; // Reset frame timer
+                }
+            }
+            if (player.invulnerable > 0) player.invulnerable -= deltaTime * 1000;
+
+            // Animation update
+            player.frameTimer += deltaTime;
+            const animation = playerAnimations[player.currentAnimation];
+            if (player.frameTimer >= 1 / animation.frameRate) {
+                player.currentFrame = (player.currentFrame + 1) % animation.frames.length;
+                player.frameTimer = 0;
+            }
+        }
+        
+        function updateUI() {
+            document.getElementById('healthBar').style.width = `${player.health / player.maxHealth * 100}%`;
+            const energyBar = document.getElementById('energyBar');
+            energyBar.style.width = `${player.energy / player.maxEnergy * 100}%`;
+            energyBar.classList.toggle('pulse', player.energy >= player.maxEnergy);
+        }
+        
+        function drawPlayer() {
+            ctx.save();
+            if (player.invulnerable > 0 && Math.floor(Date.now() / 100) % 2) {
+                ctx.globalAlpha = 0.5;
+            }
+
+            const animation = playerAnimations[player.currentAnimation];
+            const currentSprite = animation.spriteSheet[player.currentFrame]; // Get the current image
+            console.log("drawPlayer currentSprite:", currentSprite);
+            if (currentSprite && currentSprite.complete && currentSprite.naturalWidth > 0) {
+                // Handle facing direction
+                if (player.facing === -1) {
+                    ctx.translate(player.x + player.width / 2, player.y);
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(currentSprite, // Draw the individual image
+                                  -player.width / 2, -player.height, player.width, player.height);
+                } else {
+                    ctx.drawImage(currentSprite, // Draw the individual image
+                                  player.x - player.width / 2, player.y - player.height, player.width, player.height);
+                }
+            } else {
+                console.warn("Player sprite not loaded or invalid:", currentSprite);
+                ctx.fillStyle = 'red';
+                ctx.fillRect(player.x - player.width / 2, player.y - player.height, player.width, player.height);
+            }
+            
+            // Attack visuals (keep existing for now, will be replaced by sprite animations later)
+            if (player.state === 'attacking') {
+                if (player.lastAttackType === 'light') {
+                    ctx.fillStyle = player.attackCombo === 5 ? '#00FFFF' : '#ADD8E6';
+                    ctx.fillRect(player.x + (player.facing * 25), player.y - 45, 40, 20);
+                } else if (player.lastAttackType === 'heavy') {
+                    ctx.fillStyle = '#FFA500';
+                    ctx.fillRect(player.x + (player.facing * 30), player.y - 50, 60, 30);
+                }
+            } else if (player.state === 'special') {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.5)';
+                ctx.beginPath();
+                ctx.arc(player.x, player.y - player.height / 2, 60, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+        
+        function drawLevel1Background() {
+            // Draw a black background as a fallback
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (level1BackgroundImage.complete && level1BackgroundImage.naturalWidth > 0) {
+                const bgWidth = level1BackgroundImage.naturalWidth;
+                const bgHeight = level1BackgroundImage.naturalHeight;
+
+                // Scale the image to fit the canvas height, maintaining aspect ratio
+                const scale = canvas.height / bgHeight;
+                const scaledWidth = bgWidth * scale;
+                const scaledHeight = canvas.height;
+
+                // Draw the background image statically (no parallax)
+                ctx.drawImage(level1BackgroundImage, 
+                    0, 0, 
+                    scaledWidth, scaledHeight
+                );
+            }
+        }
+
+        function drawLevel2Background() {
+            // Draw the truck background image
+            if (level2TruckBackgroundImage.complete && level2TruckBackgroundImage.naturalWidth > 0) {
+                const scale = 1.2; // Zoom factor
+                const scaledWidth = canvas.width * scale;
+                const scaledHeight = canvas.height * scale;
+                const dx = (canvas.width - scaledWidth) / 2;
+                const dy = (canvas.height - scaledHeight) / 2;
+                ctx.drawImage(level2TruckBackgroundImage, dx, dy, scaledWidth, scaledHeight);
+            } else {
+                // Fallback if image not loaded
+                ctx.fillStyle = '#87CEEB'; // Sky color
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#666'; // Road color
+                ctx.fillRect(0, currentGroundLevel, canvas.width, canvas.height - currentGroundLevel);
+            }
+
+            // Background elements (clouds and birds) are drawn on top and will handle their own movement
+            backgroundElements.forEach(el => el.draw());
+        }
+
+        function drawLevel3Background() {
+            if (level3JungleBackgroundImage.complete && level3JungleBackgroundImage.naturalWidth > 0) {
+                ctx.drawImage(level3JungleBackgroundImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#2c3e50'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#8B4513'; ctx.fillRect(0, currentGroundLevel, canvas.width, canvas.height - currentGroundLevel);
+            }
+        }
+        
+        function drawLevel4Background() {
+            if (level4SunsetBackgroundImage.complete && level4SunsetBackgroundImage.naturalWidth > 0) {
+                ctx.drawImage(level4SunsetBackgroundImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#5D6D7E'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#EAECEE'; ctx.fillRect(0, currentGroundLevel, canvas.width, canvas.height-currentGroundLevel);
+            }
+        }
+
+        function drawLevel5Background() {
+            if (level5LabBackgroundImage.complete && level5LabBackgroundImage.naturalWidth > 0) {
+                ctx.drawImage(level5LabBackgroundImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#34495e'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#7f8c8d'; ctx.fillRect(0, currentGroundLevel, canvas.width, canvas.height - currentGroundLevel);
+            }
+        }
+
+        function drawLevel6Background() {
+            ctx.fillStyle = '#1C1C1C'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 2;
+            for(let i=0; i<20; i++) {
+                ctx.beginPath();
+                ctx.moveTo(Math.random()*canvas.width, 0);
+                ctx.lineTo(Math.random()*canvas.width, canvas.height);
+                ctx.stroke();
+            }
+            ctx.fillStyle = '#333'; ctx.fillRect(0, currentGroundLevel, canvas.width, canvas.height - currentGroundLevel);
+        }
+
+        function drawBeachBackground() {
+            ctx.fillStyle = '#87CEEB'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath(); ctx.arc(240, 180, 72, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#00BFFF'; ctx.fillRect(0, 450, canvas.width, canvas.height - 450);
+            ctx.fillStyle = '#F0E68C'; ctx.fillRect(0, currentGroundLevel, canvas.width, canvas.height - currentGroundLevel);
+        }
+
+        function drawEndingScene() {
+            cutsceneTimer -= 1000/60;
+            drawBeachBackground();
+
+            player.x = canvas.width / 2;
+            player.y = currentGroundLevel;
+            
+            ctx.fillStyle = '#4444ff';
+            ctx.fillRect(player.x - player.width/2, player.y - player.height, player.width, player.height);
+            
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(player.x - 15, player.y - 55, 30, 10);
+
+            ctx.fillStyle = '#000000';
+            ctx.font = '36px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText("Finally... free.", canvas.width / 2, 150);
+
+            if (cutsceneTimer <= 0) {
+                gameState = 'title';
+                document.getElementById('titleScreen').style.display = 'flex';
+                currentLevel = 0; 
+            }
+        }
+
+
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            if (gameState === 'title') {
+                 // The loop is running, but we wait for the user to click "Start Game"
+            } else if (gameState === 'cutscene' && currentLevel === 0) {
+                // Opening cutscene is handled by setTimeout in startOpeningCutscene
+            } else if (gameState === 'ending') {
+                drawEndingScene();
+            } else if (gameState === 'playing') {
+                handleInput();
+                updatePlayer(deltaTime);
+                if (npc) npc.update(deltaTime);
+
+                if (currentLevel === 2) {
+                    backgroundElements.forEach(el => el.update(deltaTime, player.vx));
+                    level2EnemySpawnTimer -= deltaTime * 1000;
+                    if(level2EnemySpawnTimer <= 0 && enemiesToSpawnInLevel2 > 0) {
+                        enemies.push(new Enemy(Math.random() * (canvas.width - 200) + 100, -50));
+                        enemiesToSpawnInLevel2--;
+                        level2EnemySpawnTimer = 3000 + Math.random() * 2000;
+                    }
+                }
+
+
+                projectiles.forEach((p, pIndex) => {
+                    p.update(deltaTime);
+                    let hit = false;
+                    if (p.type === 'knife' && Math.abs(p.x - player.x) < 20 && Math.abs(p.y - (player.y - player.height/2)) < player.height/2) {
+                        player.health = Math.max(0, player.health - 10);
+                        player.invulnerable = 500; updateUI(); hit = true;
+                    } else {
+                         [...enemies, levelBoss].filter(e => e).forEach((enemy, eIndex) => {
+                            if (Math.abs(p.x - enemy.x) < (p.width + enemy.width) / 2) {
+                                if (enemy.takeDamage(10) && enemy !== levelBoss) enemies.splice(eIndex, 1);
+                                hit = true;
+                            }
+                        });
+                    }
+                    if (hit || p.x < 0 || p.x > canvas.width || p.y > currentGroundLevel) projectiles.splice(pIndex, 1);
+                });
+                
+                environmentObjects.forEach(obj => {
+                    if(obj.type === 'laser' && obj.active && Math.abs(player.x - (obj.x + obj.width/2)) < player.width/2) {
+                        player.health = 0; updateUI(); // Instant death
+                    }
+                });
+
+                enemies.forEach(e => e.update(deltaTime));
+                if (levelBoss) levelBoss.update(deltaTime);
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (currentLevel === 1) drawLevel1Background();
+                else if (currentLevel === 2) drawLevel2Background();
+                else if (currentLevel === 3) drawLevel3Background();
+                else if (currentLevel === 4) drawLevel4Background();
+                else if (currentLevel === 5) drawLevel5Background();
+                else if (currentLevel === 6) drawLevel6Background();
+                
+                projectiles.forEach(p => p.draw());
+                environmentObjects.forEach(obj => obj.draw());
+                if(npc) npc.draw();
+                enemies.forEach(e => e.draw());
+                if (levelBoss) levelBoss.draw();
+                drawPlayer();
+                
+                checkLevelCompletion();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const titleScreen = document.getElementById('titleScreen');
+            if (titleScreen) {
+                titleScreen.addEventListener('click', startGame);
+            }
+        });
+    </script>
+</body>
+</html>
+
